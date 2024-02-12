@@ -1,6 +1,7 @@
 from flask import Flask, jsonify,render_template,request
 from flask_mysqldb import MySQL
 from flask_sqlalchemy import SQLAlchemy
+from MySQLdb.cursors import DictCursor
 
 app = Flask(__name__)
 app.config['MYSQL_HOST'] = 'localhost'
@@ -73,7 +74,7 @@ def setup_db():
 @app.route('/orders')
 def get_orders_by_user_id():
     user_id = request.args.get('user_id')
-    cur = mysql.connection.cursor()
+    cur = mysql.connection.cursor(DictCursor)
     cur.execute('''
         SELECT orders.*
         FROM orders
