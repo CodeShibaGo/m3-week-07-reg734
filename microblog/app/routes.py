@@ -6,7 +6,7 @@ from sqlalchemy import text
 import sqlalchemy as sa
 from app.models import User
 from urllib.parse import urlsplit
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash,check_password_hash
 from datetime import datetime, timezone
 from flask_wtf.csrf import validate_csrf, CSRFError
 
@@ -33,20 +33,41 @@ def index():
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
-    form = LoginForm()
-    if form.validate_on_submit():
-        user = db.session.scalar(
-            sa.select(User).where(User.username == form.username.data))
-        if user is None or not user.check_password(form.password.data):
-            flash('無效的使用者名稱或密碼')
-            return redirect(url_for('login'))
-        login_user(user, remember=form.remember_me.data)
-        next_page = request.args.get('next')
-        if not next_page or urlsplit(next_page).netloc != '':
-            next_page = url_for('index')
-        return redirect(next_page)
-    return render_template('login.html', title='登入', form=form)
+    errors = {}
+    if request.method == 'POST':
+        try:
+            validate_csrf(request.form.get('csrf_token'))
+        except CSRFError:
+            errors['csrf'] = 'CSRF 驗證失敗'
+            return render_template('login.html', errors=errors)
 
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        remember = bool(request.form.get('remember_me'))
+
+        # 基本欄位驗證
+        if not username:
+            errors['username'] = '請輸入使用者名稱'
+        if not password:
+            errors['password'] = '請輸入密碼'
+
+        if not errors:
+            # 查找使用者
+            sql = text("SELECT * FROM user WHERE username = :username")
+            result = db.session.execute(sql, {'username': username}).first()
+
+            if result:
+                user = User.query.get(result.id)  # 將原始資料轉為 SQLAlchemy model 使用
+                if check_password_hash(user.password_hash, password):
+                    login_user(user, remember=remember)
+                    flash('登入成功！')
+                    return redirect(url_for('index'))
+                else:
+                    errors['password'] = '密碼錯誤'
+            else:
+                errors['username'] = '使用者不存在'
+
+    return render_template('login.html', errors=errors)
 @app.route('/logout')
 def logout():
     logout_user()
@@ -59,29 +80,29 @@ def register():
     errors = {}
 
     if request.method == 'POST':
-        # ✅ CSRF 驗證
+        # CSRF 驗證
         try:
             validate_csrf(request.form.get('csrf_token'))
         except CSRFError:
             errors['csrf'] = 'CSRF 驗證失敗'
 
-        # ✅ 取得欄位並去除多餘空白
+        # 取得欄位並去除多餘空白
         username = request.form.get('username', '').strip()
         email = request.form.get('email', '').strip()
         password = request.form.get('password', '')
         password2 = request.form.get('password2', '')
 
-        # ✅ 手動表單驗證
+        # 手動表單驗證
         if not username:
             errors['username'] = '請輸入使用者名稱'
-        if not email:
-            errors['email'] = '請輸入 Email'
+        if not email or '@' not in email:
+            errors['email'] = '請輸入有效 Email'
         if not password:
             errors['password'] = '請輸入密碼'
         if password != password2:
             errors['password2'] = '密碼不一致'
 
-        # ✅ 重複資料驗證（只有在前面沒錯時才進行）
+        # 重複資料驗證（只有在前面沒錯時才進行）
         if not errors:
             sql_user = text("SELECT id FROM user WHERE username = :username")
             if db.session.execute(sql_user, {'username': username}).first():
@@ -91,7 +112,7 @@ def register():
             if db.session.execute(sql_email, {'email': email}).first():
                 errors['email'] = 'Email 已被註冊'
 
-        # ✅ 若沒有錯誤就寫入 DB
+        # 若沒有錯誤就寫入 DB
         if not errors:
             hashed_password = generate_password_hash(password)
             sql_insert = text("""

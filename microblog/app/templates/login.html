@@ -2,24 +2,33 @@
 
 {% block content %}
   <h1>登入</h1>
-  <form action="" method="post" novalidate>
-    {{form.hidden_tag() }}
+  <form method="post" action="">
+    <!-- CSRF Token -->
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  
     <p>
-      {{form.username.label}}<br>
-      {{form.username(size=32)}}
-      {% for error in form.username.errors %}
-      <span style="color: red;">[{{error}}]</span>
-      {% endfor %}
+      <label for="username">使用者名稱</label><br>
+      <input type="text" name="username" id="username" size="32" value="{{ request.form.get('username', '') }}">
+      {% if errors.username %}
+        <span style="color: red;">{{ errors.username }}</span>
+      {% endif %}
     </p>
-        <p>
-      {{form.password.label}}<br>
-      {{form.password(size=32)}}
-      {% for error in form.password.errors %}
-      <span style="color: red;">[{{error}}]</span>
-      {% endfor %}
+  
+    <p>
+      <label for="password">密碼</label><br>
+      <input type="password" name="password" id="password" size="32">
+      {% if errors.password %}
+        <span style="color: red;">{{ errors.password }}</span>
+      {% endif %}
     </p>
-    <p>{{form.remember_me()}}{{form.remember_me.label}}</p>
-    <p>{{form.submit()}}</p>
-  </form>
+  
+    <p>
+      <input type="checkbox" name="remember_me" id="remember_me">
+      <label for="remember_me">記住我</label>
+    </p>
+  
+    <p>
+      <input type="submit" value="登入">
+    </p>
   <p> 新使用者？ <a href="{{ url_for('register') }}"> 點擊註冊！</a></p>
 {% endblock %}
