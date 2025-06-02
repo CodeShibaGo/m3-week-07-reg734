@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>註冊</h1>
+    <form method="post" action="">
+        <!-- CSRF Token -->
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        {% if errors.csrf %}
+            <p style="color: red;">{{ errors.csrf }}</p>
+        {% endif %}
+
+        <p>
+            <label for="username">使用者名稱</label><br>
+            <input type="text" name="username" id="username" size="32" value="{{ request.form.get('username', '') }}"><br>
+            {% if errors.username %}
+            <span style="color: red;">{{ errors.username }}</span>
+            {% endif %}
+        </p>
+
+        <p>
+            <label for="email">Email</label><br>
+            <input type="email" name="email" id="email" size="64" value="{{ request.form.get('email', '') }}"><br>
+            {% if errors.email %}
+            <span style="color: red;">{{ errors.email }}</span>
+            {% endif %}
+        </p>
+
+        <p>
+            <label for="password">密碼</label><br>
+            <input type="password" name="password" id="password" size="32"><br>
+            {% if errors.password %}
+            <span style="color: red;">{{ errors.password }}</span>
+            {% endif %}
+        </p>
+
+        <p>
+            <label for="password2">確認密碼</label><br>
+            <input type="password" name="password2" id="password2" size="32"><br>
+            {% if errors.password2 %}
+            <span style="color: red;">{{ errors.password2 }}</span>
+            {% endif %}
+        </p>
+
+        <p><input type="submit" value="註冊"></p>
+    </form>
+{% endblock %}
