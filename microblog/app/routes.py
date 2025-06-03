@@ -1,6 +1,6 @@
 from flask import render_template, flash, redirect, url_for, request
 from app import app, db
-from app.forms import LoginForm, RegistrationForm, EditProfileForm, EmptyForm, PostForm
+from app.forms import LoginForm, RegistrationForm, EditProfileForm, EmptyForm, PostForm, ResetPasswordRequestForm, ResetPasswordForm
 from flask_login import  login_user, logout_user, current_user, login_required
 from sqlalchemy import text
 import sqlalchemy as sa
@@ -10,6 +10,7 @@ from werkzeug.security import generate_password_hash,check_password_hash
 from datetime import datetime, timezone
 from flask_wtf.csrf import validate_csrf, CSRFError
 from app.models import Post
+from app.email import send_password_reset_email
 
 
 
@@ -145,6 +146,38 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('index'))
+
+
+@app.route('/reset_password_request', methods=['GET', 'POST'])
+def reset_password_request():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    form = ResetPasswordRequestForm()
+    if form.validate_on_submit():
+        user = db.session.scalar(
+            sa.select(User).where(User.email == form.email.data))
+        if user:
+            send_password_reset_email(user)
+        flash('請檢查你的電子郵件以獲取重設密碼的指示')
+        return redirect(url_for('login'))
+    return render_template('reset_password_request.html',
+                           title='重設密碼', form=form)
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    user = User.verify_reset_password_token(token)
+    if not user:
+        return redirect(url_for('index'))
+    form = ResetPasswordForm()
+    if form.validate_on_submit():
+        user.set_password(form.password.data)
+        db.session.commit()
+        flash('Your password has been reset.')
+        return redirect(url_for('login'))
+    return render_template('reset_password.html', form=form)
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
