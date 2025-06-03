@@ -107,6 +107,7 @@ def explore():
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
+    form = LoginForm()
     errors = {}
     if request.method == 'POST':
         try:
@@ -141,7 +142,7 @@ def login():
             else:
                 errors['username'] = '使用者不存在'
 
-    return render_template('login.html', errors=errors)
+    return render_template('login.html', form=form, errors=errors)
 @app.route('/logout')
 def logout():
     logout_user()
@@ -183,6 +184,7 @@ def reset_password(token):
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
+    form = RegistrationForm()
     errors = {}
 
     if request.method == 'POST':
@@ -234,7 +236,7 @@ def register():
             flash('註冊成功！')
             return redirect(url_for('login'))
 
-    return render_template('register.html', errors=errors)
+    return render_template('register.html',form=form, errors=errors)
 
 @app.route('/user/<username>')
 @login_required
