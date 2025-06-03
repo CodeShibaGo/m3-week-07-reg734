@@ -1,6 +1,6 @@
 from flask import render_template, flash, redirect, url_for, request
 from app import app, db
-from app.forms import LoginForm, RegistrationForm, EditProfileForm, EmptyForm
+from app.forms import LoginForm, RegistrationForm, EditProfileForm, EmptyForm, PostForm
 from flask_login import  login_user, logout_user, current_user, login_required
 from sqlalchemy import text
 import sqlalchemy as sa
@@ -9,25 +9,98 @@ from urllib.parse import urlsplit
 from werkzeug.security import generate_password_hash,check_password_hash
 from datetime import datetime, timezone
 from flask_wtf.csrf import validate_csrf, CSRFError
+from app.models import Post
 
 
 
-@app.route('/')
-@app.route('/index')
+@app.route('/', methods=['GET', 'POST'])
+@app.route('/index', methods=['GET', 'POST'])
 @login_required
 def index():
-    user = {'username': 'Reg'}
-    posts =[
-        {
-            'author':{'username':'John'},
-            'body':'Portland 的天氣真好'
-        },
-        {
-            'author':{'username': 'Susan'},
-            'body': '復仇者聯盟電影真的很酷！'
-        }
-    ]
-    return render_template('index.html', title='首頁', user=user, posts=posts)
+    form = PostForm()
+    if form.validate_on_submit():
+        post = Post(body=form.post.data, author=current_user)
+        db.session.add(post)
+        db.session.commit()
+        flash('你的貼文現在已發布！')
+        return redirect(url_for('index'))
+    page = request.args.get('page', 1, type=int)
+    posts = db.paginate(current_user.following_posts(), page=page,
+                        per_page=app.config['POSTS_PER_PAGE'], error_out=False)
+    next_url = url_for('index', page=posts.next_num) \
+        if posts.has_next else None
+    prev_url = url_for('index', page=posts.prev_num) \
+        if posts.has_prev else None
+    return render_template('index.html', title='首頁', form = form, posts=posts.items, next_url=next_url,prev_url=prev_url)
+
+@app.route('/explore')
+@login_required
+def explore():
+    page = request.args.get('page', 1, type=int)
+    per_page = 5 or app.config.get('POSTS_PER_PAGE') 
+    print("每頁顯示筆數：", per_page)
+    offset = (page - 1) * per_page
+
+    # 查詢總數（用來判斷是否有下一頁）
+    total_sql = text("SELECT COUNT(*) FROM post")
+    total = db.session.execute(total_sql).scalar()
+
+    # Raw SQL 查詢含 JOIN user
+    sql = text("""
+        SELECT post.id AS post_id, post.body, post.timestamp, post.user_id,
+               user.id AS user_id, user.username, user.email
+        FROM post
+        JOIN user ON post.user_id = user.id
+        ORDER BY post.timestamp DESC
+        LIMIT :limit OFFSET :offset
+    """)
+
+    result = db.session.execute(sql, {'limit': per_page, 'offset': offset})
+    rows = result.fetchall()
+
+    posts = []
+    for row in rows:
+        # 建立 User 實例
+        user = User(id=row.user_id, username=row.username, email=row.email)
+
+        # 建立 Post 實例，注意欄位對應
+        post = Post(id=row.post_id, body=row.body, timestamp=row.timestamp, user_id=row.user_id)
+
+        # 手動指定 post.author
+        post.author = user
+
+        posts.append(post)
+
+    # 分頁控制（手動模擬 flask-sqlalchemy 的 pagination）
+    class Pagination:
+        def __init__(self, page, per_page, total):
+            self.page = page
+            self.per_page = per_page
+            self.total = total
+
+        @property
+        def has_next(self):
+            return self.page * self.per_page < self.total
+
+        @property
+        def has_prev(self):
+            return self.page > 1
+
+        @property
+        def next_num(self):
+            return self.page + 1
+
+        @property
+        def prev_num(self):
+            return self.page - 1
+
+    pagination = Pagination(page, per_page, total)
+
+    next_url = url_for('explore', page=pagination.next_num) if pagination.has_next else None
+    prev_url = url_for('explore', page=pagination.prev_num) if pagination.has_prev else None
+
+    return render_template('index.html', title='探索', posts=posts,
+                           next_url=next_url, prev_url=prev_url)
 
 @app.route('/login', methods=['GET','POST'])
 def login():
@@ -134,12 +207,18 @@ def register():
 @login_required
 def user(username):
     user = db.first_or_404(sa.select(User).where(User.username == username))
-    posts = [
-        {'author': user, 'body': '測試貼文 #1'},
-        {'author': user, 'body': '測試貼文 #2'}
-    ]
+    page = request.args.get('page', 1, type=int)
+    query = user.posts.select().order_by(Post.timestamp.desc())
+    posts = db.paginate(query, page=page,
+                        per_page=app.config['POSTS_PER_PAGE'],
+                        error_out=False)
+    next_url = url_for('user', username=user.username, page=posts.next_num) \
+        if posts.has_next else None
+    prev_url = url_for('user', username=user.username, page=posts.prev_num) \
+        if posts.has_prev else None
     form = EmptyForm()
-    return render_template('user.html', user=user, posts=posts, form=form)
+    return render_template('user.html', user=user, posts=posts.items,
+                           next_url=next_url, prev_url=prev_url, form=form)
 
 @app.before_request
 def before_request():
@@ -202,5 +281,7 @@ def unfollow(username):
         return redirect(url_for('user', username=username))
     else:
         return redirect(url_for('index'))
+    
+
 
 

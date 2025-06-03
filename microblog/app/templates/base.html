@@ -10,6 +10,7 @@
 <body>
   <div> 微型部落格：
       <a href="{{ url_for('index') }}"> 首頁 </a>
+      <a href="{{ url_for('explore') }}"> 探索 </a>
       {% if current_user.is_anonymous %}
       <a href="{{ url_for('login') }}"> 登入 </a>
       {% else %}

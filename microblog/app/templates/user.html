@@ -35,4 +35,10 @@
     {% for post in posts %}
         {% include '_post.html' %}
     {% endfor %}
+    {% if prev_url %}
+    <a href="{{ prev_url}}"> 較新的貼文 </a>
+    {% endif %}
+    {% if next_url %}
+    <a href="{{ next_url}}"> 較舊的貼文 </a>
+    {% endif %}
 {% endblock %}

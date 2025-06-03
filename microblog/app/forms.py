@@ -52,3 +52,10 @@ class EditProfileForm(FlaskForm):
             
 class EmptyForm(FlaskForm):
     submit = SubmitField('提交')
+
+
+
+class PostForm(FlaskForm):
+    post = TextAreaField('說點什麼', validators=[
+        DataRequired(), Length(min=1, max=140)])
+    submit = SubmitField('提交')
